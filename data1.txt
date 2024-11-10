@@ -1,0 +1,6 @@
+4
+x <= x+y
+y <= y+2z
+x <= 3x+z
+z <= y-z
+abcd

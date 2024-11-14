@@ -1,4 +1,5 @@
-
+#[cfg(test)]
+mod tests;
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -6,7 +7,7 @@ use std::fs;
 fn main(){
 
     //let (n, transformations, alphabet) = read_from_console();
-    let (n, transformations, alphabet) = read_from_file("data1.txt".to_string());
+    let (n, transformations, alphabet, word) = read_from_file("data2.txt".to_string());
     let  variables = find_variables(&transformations);
     
     let mut transformations_with_variables: Vec<HashMap<char, VariableSituation>> = create_matrix(&variables, n);
@@ -20,10 +21,75 @@ fn main(){
     let (D, I) = create_sets(&transformations_with_variables, &alphabet);
     println!("Zbiór D: {:?}", D);
     println!("Zbiór I: {:?}", I);
+    let foata = create_foata_normal_form(&word, &I, &alphabet);
+    for (i, set) in foata.iter().enumerate() {
+        println!("Zbiór nr {}: {:?}", i+1, set);
+    }
     
 
 
 }
+
+fn create_foata_normal_form(word: &String, I: &HashSet<(char,char)>,  alphabet: &Vec<char>) -> Vec<HashSet<char>> {
+    let mut foata: Vec<HashSet<char>> = Vec::new();
+    let mut stacks: HashMap<char, Vec<char>> = alphabet.iter().map(|&c| (c, Vec::new())).collect();
+    fill_stacks(word, &mut stacks, I);
+    fill_foata(&mut stacks, &mut foata);
+    foata
+}
+
+fn fill_foata(stacks: &mut HashMap<char, Vec<char>>, foata: &mut Vec<HashSet<char>>, I: &HashSet<(char, char)>, alphabet: &Vec<char>) {  
+    while !stacks.values().all(|stack| stack.is_empty()) {
+        let mut set = HashSet::new();
+        for stack_el in stacks.iter_mut() {
+            let (letter, stack) = stack_el;
+            let current_sign = stack.last().unwrap_or(&'*'); // '*' has here second meaning, it's a sign that stack is empty (normally is a special stack sign)
+            if *current_sign != '*' {
+                set.insert(*current_sign);
+                stack.pop();
+                for alphabet_letter in alphabet {
+                    if !I.contains(&(*current_sign, *alphabet_letter)) {
+                        if *current_sign == *alphabet_letter {
+                            continue;
+                        }
+                        let tmp_stack = stacks.get_mut(alphabet_letter).unwrap();
+                        let current_sign = stack.last().unwrap_or(&'_');
+                        if *current_sign != '*' {
+                            tmp_stack.pop();
+                        }
+                    }
+                }  
+            }
+        }
+        if set.is_empty() {
+            for stack_el in stacks.iter_mut() {
+                let (letter, stack) = stack_el;
+                stack.pop();
+            }
+        } else {
+            foata.push(set);
+        }
+
+    }
+    }
+
+fn fill_stacks(word: &String, stacks: &mut HashMap<char, Vec<char>>, I: &HashSet<(char, char)>) {
+    for c in word.chars().rev() {
+        for stack_el in stacks.iter_mut() {
+            let (letter, stack) = stack_el;
+            if !I.contains(&(c, *letter)) {
+                if c == *letter {
+                    stack.push(c);
+                } else {
+                    stack.push('*');
+                }
+            }
+    
+        }
+
+    }
+}
+
 
 fn read_file_name() -> String {
     println!("Podaj nazwę pliku z danymi: ");
@@ -32,7 +98,7 @@ fn read_file_name() -> String {
     let filename = filename.trim();
     filename.to_string()
 }
-fn read_from_file(mut filename: String) ->(i32, Vec<String>, Vec<char>) {
+fn read_from_file(mut filename: String) ->(i32, Vec<String>, Vec<char>, String) {
     if filename.is_empty() {
         filename = read_file_name(); 
     }
@@ -44,18 +110,11 @@ fn read_from_file(mut filename: String) ->(i32, Vec<String>, Vec<char>) {
         transformations.push(lines.next().expect("Failed to read transformation").to_string());   
     }
     let alphabet = parse_alphabet(&lines.next().expect("Failed to read alphabet").to_string());
-    (n, transformations, alphabet)
+    let word = lines.next().expect("Failed to read word");
+    (n, transformations, alphabet, word.to_string())
 }
 
-#[doc = "Test sprawdzający czy funkcja read_from_file zwraca poprawne dane"]
-#[test]
-fn test_read_from_file() {
-    let (n, transformations, alphabet) = read_from_file("data1.txt".to_string());
-    println!("n: {}, transformations: {:?}, alphabet: {:?}", n, transformations, alphabet);
-    assert_eq!(n, 4);
-    assert_eq!(transformations, vec!["x <= x+y", "y <= y+2z", "x <= 3x+z", "z <= y-z"]);
-    assert_eq!(alphabet, vec!['a', 'b', 'c', 'd']);
-}
+
 fn read_from_console() ->(i32, Vec<String>, Vec<char>) {
     println!("Podaj liczbę równań, które chcesz wprowadzić: ");
     let mut n = String::new();
@@ -86,12 +145,6 @@ fn parse_alphabet(alphabet: &String) -> Vec<char> {
 
 }
 
-#[doc = "Test sprawdzający czy funkcja read_alphabet zwraca poprawny alfabet, trzeba wpisać \"abcd\""]
-#[test]
-fn test_read_alphabet() {
-    let alphabet = get_alphabet_from_input();
-    assert_eq!(alphabet, vec!['a', 'b', 'c', 'd']);
-}
 fn create_sets(transformations_with_variables: &Vec<HashMap<char, VariableSituation>>, alphabet: &Vec<char>) -> (HashSet<(char, char)>, HashSet<(char, char)>) {
     let mut D = HashSet::new();
     let mut I = HashSet::new();
@@ -231,26 +284,7 @@ impl VariableSituation {
         }
     }
 }
-#[doc = "Test sprawdzający wszystkie możliwe przypadki zależności zmiennych"]
-#[test]
-fn test_is_depend() {
-    assert_eq!(VariableSituation::Left.is_depend(&VariableSituation::Right), true);
-    assert_eq!(VariableSituation::Left.is_depend(&VariableSituation::Left), true); 
-    assert_eq!(VariableSituation::Left.is_depend(&VariableSituation::Both), true); 
-    assert_eq!(VariableSituation::Left.is_depend(&VariableSituation::Neither), false);
-    assert_eq!(VariableSituation::Right.is_depend(&VariableSituation::Left), true);
-    assert_eq!(VariableSituation::Right.is_depend(&VariableSituation::Right), false);
-    assert_eq!(VariableSituation::Right.is_depend(&VariableSituation::Both), true);
-    assert_eq!(VariableSituation::Right.is_depend(&VariableSituation::Neither), false);
-    assert_eq!(VariableSituation::Both.is_depend(&VariableSituation::Left), true);
-    assert_eq!(VariableSituation::Both.is_depend(&VariableSituation::Right), true);
-    assert_eq!(VariableSituation::Both.is_depend(&VariableSituation::Both), true);
-    assert_eq!(VariableSituation::Both.is_depend(&VariableSituation::Neither), false);
-    assert_eq!(VariableSituation::Neither.is_depend(&VariableSituation::Left), false);
-    assert_eq!(VariableSituation::Neither.is_depend(&VariableSituation::Right), false);
-    assert_eq!(VariableSituation::Neither.is_depend(&VariableSituation::Both), false);
-    assert_eq!(VariableSituation::Neither.is_depend(&VariableSituation::Neither), false);
-}
+
 enum CurrentSite {
     Left,
     Right

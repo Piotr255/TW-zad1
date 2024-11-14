@@ -4,3 +4,4 @@ y <= y+2z
 x <= 3x+z
 z <= y-z
 abcd
+baadcb

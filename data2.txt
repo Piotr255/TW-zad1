@@ -1,0 +1,9 @@
+6
+x <= x + y
+y <= z - v
+z <= v * x
+v <= x + 2y
+x <= 3y + 2x
+v <= v - 2z
+abcdef
+afaeffbcd

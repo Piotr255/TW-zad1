@@ -7,7 +7,7 @@ use std::fs;
 fn main(){
 
     //let (n, transformations, alphabet) = read_from_console();
-    let (n, transformations, alphabet, word) = read_from_file("data2.txt".to_string());
+    let (n, transformations, alphabet, word) = read_from_file("data3.txt".to_string());
     let  variables = find_variables(&transformations);
     
     let mut transformations_with_variables: Vec<HashMap<char, VariableSituation>> = create_matrix(&variables, n);
@@ -30,37 +30,42 @@ fn main(){
 
 }
 
+#[doc = "Funkcja odpowiada za wyznaczenie zbiorów Foaty. Korzystam z algorytmu z kopcami z książki podanej w treści zadania."]
 fn create_foata_normal_form(word: &String, I: &HashSet<(char,char)>,  alphabet: &Vec<char>) -> Vec<HashSet<char>> {
     let mut foata: Vec<HashSet<char>> = Vec::new();
     let mut stacks: HashMap<char, Vec<char>> = alphabet.iter().map(|&c| (c, Vec::new())).collect();
     fill_stacks(word, &mut stacks, I);
-    fill_foata(&mut stacks, &mut foata);
+    fill_foata(&mut stacks, &mut foata, &I, &alphabet);
     foata
 }
 
+
 fn fill_foata(stacks: &mut HashMap<char, Vec<char>>, foata: &mut Vec<HashSet<char>>, I: &HashSet<(char, char)>, alphabet: &Vec<char>) {  
+    let mut to_be_popped = Vec::new();
     while !stacks.values().all(|stack| stack.is_empty()) {
         let mut set = HashSet::new();
+        for element in &to_be_popped {
+            let stack = stacks.get_mut(element).unwrap();
+            stack.pop();
+        }
+        to_be_popped.clear();
         for stack_el in stacks.iter_mut() {
-            let (letter, stack) = stack_el;
-            let current_sign = stack.last().unwrap_or(&'*'); // '*' has here second meaning, it's a sign that stack is empty (normally is a special stack sign)
-            if *current_sign != '*' {
-                set.insert(*current_sign);
+            let (_letter, stack) = stack_el;
+            let current_sign = *stack.last().unwrap_or(&'*'); // '*' has here second meaning, it's a sign that stack is empty (normally is a special stack sign)
+            if current_sign != '*' {
+                set.insert(current_sign);
                 stack.pop();
                 for alphabet_letter in alphabet {
-                    if !I.contains(&(*current_sign, *alphabet_letter)) {
-                        if *current_sign == *alphabet_letter {
+                    if !I.contains(&(current_sign, *alphabet_letter)) {
+                        if current_sign == *alphabet_letter {
                             continue;
                         }
-                        let tmp_stack = stacks.get_mut(alphabet_letter).unwrap();
-                        let current_sign = stack.last().unwrap_or(&'_');
-                        if *current_sign != '*' {
-                            tmp_stack.pop();
+                            to_be_popped.push(*alphabet_letter);
                         }
                     }
                 }  
             }
-        }
+        
         if set.is_empty() {
             for stack_el in stacks.iter_mut() {
                 let (letter, stack) = stack_el;
@@ -69,9 +74,9 @@ fn fill_foata(stacks: &mut HashMap<char, Vec<char>>, foata: &mut Vec<HashSet<cha
         } else {
             foata.push(set);
         }
-
     }
     }
+    
 
 fn fill_stacks(word: &String, stacks: &mut HashMap<char, Vec<char>>, I: &HashSet<(char, char)>) {
     for c in word.chars().rev() {

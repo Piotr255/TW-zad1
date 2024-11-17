@@ -1,5 +1,9 @@
+#![allow(non_snake_case)]
+#![allow(unused)]
+
 #[cfg(test)]
 mod tests;
+
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -9,34 +13,45 @@ use std::io::Write;
 use std::process::Command;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::dot::{Dot, Config};
-use petgraph::visit::Dfs;
-
 
 fn main(){
+    //pobrania nazwy pliku z argumentów
+    let args = std::env::args().collect::<Vec<String>>();
+    let filename = if args.len() > 1 {
+        args[1].clone()
+    } else {
+        String::new()
+    };
+    //odczyt z pliku
+    let (n, transformations, alphabet, word) = read_from_file(filename.to_string());
 
-    //let (n, transformations, alphabet) = read_from_console();
-    let (n, transformations, alphabet, word) = read_from_file("data2.txt".to_string());
+    //przygotowywanie danych do obliczeń
     let  variables = find_variables(&transformations);
-    
     let mut transformations_with_variables: Vec<HashMap<char, VariableSituation>> = create_matrix(&variables, n);
     fill_matrix_with_variables_status(&transformations, &mut transformations_with_variables);
-    // for (i, transformation) in transformations.iter().enumerate() {
-    //     println!("Równanie nr {}: {}", i+1, transformation);
-    //     for (variable, situation) in &transformations_with_variables[i] {
-    //         println!("Zmienna: {}, sytuacja: {:?}", variable, situation);
-    //     }
-    // }
+
+    //tworzenie zbiorów D i I i zapis do pliku
     let (D, I) = create_sets(&transformations_with_variables, &alphabet);
     println!("Zbiór D: {:?}", D);
     println!("Zbiór I: {:?}", I);
+    let D_string = format!("{:?}", D);
+    let I_string = format!("{:?}", I);
+    let mut file = File::create("result.txt").unwrap();
+    write!(file, "D = {} \nI = {} \nFNF:", D_string, I_string).unwrap();
+    
+    //tworzenie FNF i zapis do pliku
     let foata = create_foata_normal_form(&word, &I, &alphabet);
+    println!("Zbiory Foaty: ");
     for (i, set) in foata.iter().enumerate() {
         println!("Zbiór nr {}: {:?}", i+1, set);
+        write!(file, "\nZbiór nr {}: {:?}", i+1, set).unwrap();
     }
+
+    drop(file);
+    println!("Zbiory i postać Foaty zostały dodane do result.txt");
+
     let graph = create_dependency_graph(&word, &D);
-    println!("Graf zależności: {:?}", graph);
     let graph = transitive_reduction(&graph);
-    println!("Graf zależności po redukcji: {:?}", graph);
     let dot_format = Dot::with_config(&graph, &[Config::EdgeNoLabel]);
     let dot_format = format!("{:?}", dot_format);
 
@@ -45,12 +60,14 @@ fn main(){
     write!(file, "{}", dot_format).unwrap();
     drop(file); //fixes problem with graph.dot not being present in the next step
 
-    Command::new("dot")
+    match Command::new("dot")
         .args(&["-Tpng", "graph.dot", "-o", "graph.png"])
         .output()
-        .expect("Nie udało się wygenerować grafu");
+        {
+            Ok(_) => println!("Graf został wygenerowany do pliku graph.png"),
+            Err(_) => println!("Nie udało się wygenerować grafu")
+        }
 
-    println!("Graf został wygenerowany do pliku graph.png");
 
 }
 
@@ -85,7 +102,6 @@ fn transitive_reduction(graph: &DiGraph<char, ()>) -> DiGraph<char, ()> {
             if node_neigbours.contains(&neighbour) {
                 if !descendants.contains_key(&neighbour) {
                     let descendants_set = bfs(graph, neighbour);
-                    println!("Descendants: {:?}", descendants_set);
                     descendants.insert(neighbour, descendants_set);
                 }
                 node_neigbours.retain(|&x| !descendants[&neighbour].contains(&x)); 

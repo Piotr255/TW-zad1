@@ -24,19 +24,13 @@ fn test_is_depend() {
 }
 
 
-#[doc = "Test sprawdzający czy funkcja read_alphabet zwraca poprawny alfabet, trzeba wpisać \"abcd\""]
-#[test]
-fn test_read_alphabet() {
-    let alphabet = get_alphabet_from_input();
-    assert_eq!(alphabet, vec!['a', 'b', 'c', 'd']);
-}
 
 #[doc = "Test sprawdzający czy funkcja read_from_file zwraca poprawne dane"]
 #[test]
 fn test_read_from_file() {
-    let (n, transformations, alphabet) = read_from_file("data1.txt".to_string());
-    println!("n: {}, transformations: {:?}, alphabet: {:?}", n, transformations, alphabet);
+    let (n, transformations, alphabet,word ) = read_from_file("data1.txt".to_string());
     assert_eq!(n, 4);
     assert_eq!(transformations, vec!["x <= x+y", "y <= y+2z", "x <= 3x+z", "z <= y-z"]);
     assert_eq!(alphabet, vec!['a', 'b', 'c', 'd']);
+    assert_eq!(word, "baadcb".to_string());
 }

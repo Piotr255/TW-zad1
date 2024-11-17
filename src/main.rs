@@ -4,10 +4,18 @@ mod tests;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::process::Command;
+use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::dot::{Dot, Config};
+use petgraph::visit::Dfs;
+
+
 fn main(){
 
     //let (n, transformations, alphabet) = read_from_console();
-    let (n, transformations, alphabet, word) = read_from_file("data3.txt".to_string());
+    let (n, transformations, alphabet, word) = read_from_file("data2.txt".to_string());
     let  variables = find_variables(&transformations);
     
     let mut transformations_with_variables: Vec<HashMap<char, VariableSituation>> = create_matrix(&variables, n);
@@ -25,10 +33,93 @@ fn main(){
     for (i, set) in foata.iter().enumerate() {
         println!("Zbiór nr {}: {:?}", i+1, set);
     }
-    
+    let graph = create_dependency_graph(&word, &D);
+    println!("Graf zależności: {:?}", graph);
+    let graph = transitive_reduction(&graph);
+    println!("Graf zależności po redukcji: {:?}", graph);
+    let dot_format = Dot::with_config(&graph, &[Config::EdgeNoLabel]);
+    let dot_format = format!("{:?}", dot_format);
 
+
+    let mut file = File::create("graph.dot").unwrap();
+    write!(file, "{}", dot_format).unwrap();
+    drop(file); //fixes problem with graph.dot not being present in the next step
+
+    Command::new("dot")
+        .args(&["-Tpng", "graph.dot", "-o", "graph.png"])
+        .output()
+        .expect("Nie udało się wygenerować grafu");
+
+    println!("Graf został wygenerowany do pliku graph.png");
 
 }
+
+
+fn create_dependency_graph(word: &String, D: &HashSet<(char,char)>) -> DiGraph<char, ()> {
+    let mut graph = DiGraph::new();
+    for c in word.chars() {
+        graph.add_node(c);
+    }
+    for node in graph.node_indices() {
+        for other_node in graph.node_indices() {
+            if node >= other_node {
+                continue;
+            } 
+            if D.contains(&(graph[node], graph[other_node])) {
+                graph.add_edge(node, other_node, ());
+            }
+        }
+    }
+    graph
+}
+
+fn transitive_reduction(graph: &DiGraph<char, ()>) -> DiGraph<char, ()> {
+    let mut transitive_reducted_graph = DiGraph::new();
+    for node in graph.node_indices() {
+        transitive_reducted_graph.add_node(graph[node]);
+    }
+    let mut descendants = HashMap::new();
+    for node in graph.node_indices() {
+        let mut node_neigbours: HashSet<NodeIndex> = graph.neighbors(node).collect();
+        for neighbour in node_neigbours.clone() {
+            if node_neigbours.contains(&neighbour) {
+                if !descendants.contains_key(&neighbour) {
+                    let descendants_set = bfs(graph, neighbour);
+                    println!("Descendants: {:?}", descendants_set);
+                    descendants.insert(neighbour, descendants_set);
+                }
+                node_neigbours.retain(|&x| !descendants[&neighbour].contains(&x)); 
+            }
+           
+        }
+        for neighbour in node_neigbours { 
+            transitive_reducted_graph.add_edge(node, neighbour, ());
+        }
+    }
+
+    transitive_reducted_graph
+}
+
+fn bfs(graph: &DiGraph<char, ()>, node: petgraph::graph::NodeIndex) -> HashSet<petgraph::graph::NodeIndex> {
+    let mut visited = HashSet::new();
+    let mut queue = Vec::new();
+    queue.push(node);
+    while !queue.is_empty() {
+        let current_node = queue.pop().unwrap();
+        if !(current_node == node) {
+            visited.insert(current_node);
+        }
+        for neighbour in graph.neighbors(current_node) {
+            if !visited.contains(&neighbour) {
+                queue.push(neighbour);
+            }
+        }
+    }
+    visited
+
+}
+
+
 
 #[doc = "Funkcja odpowiada za wyznaczenie zbiorów Foaty. Korzystam z algorytmu z kopcami z książki podanej w treści zadania."]
 fn create_foata_normal_form(word: &String, I: &HashSet<(char,char)>,  alphabet: &Vec<char>) -> Vec<HashSet<char>> {
